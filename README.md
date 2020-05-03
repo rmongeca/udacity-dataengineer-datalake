@@ -12,32 +12,6 @@ using Spark, and loads the data back into S3 as a set of dimensional tables.
 This will allow their analytics team to continue finding insights in what songs
 their users are listening to.
 
-## Database design
-
-Given that the company's main focus is to do song play analysis, we decide to
-focus our DB around the song plays. We devise a set of fact/dimension tables
-to keep in our Data Lake.
-
-As such, we decide on a *star schema* with a main fact table **Songplays**,
-that will hold each repdroduction of a song by a user. The dimension tables
-which relate to this fact will be: **Songs**, to hold the infomration of each
-song; **Artists**, to hold the information of each artist; **Users** to hold
-the information of each user; and **Time** to hold the time of each song play.
-
-Each of our fact and dimension tables will have its id column as primary key
-(PK). Due to the nature of the given mock data, we use for the song and artist
-id we use a PK of type varchar, for the user's id an int and for the each time
-record we use the specific time as timestamp.
-
-Ideally if the mock data were complete, that is all *log_data* reference songs
-and artist which are in the *song_data*, we could reference each of the ids of
-the dimension tables as foreign keys (FK) in the fact table and use their
-combination as a PK. In our case, however, we decide to add a serial type
-(unique not null auto-increasing int) as the Songplays fact table PK, ignoring
-all FK relations.
-
-The rest of names and data types come naturally from the mock data samples.
-
 ## ETL design
 
 For the ETL we have to different types of files:
@@ -66,6 +40,14 @@ The project is divided in three parts:
 
 - Configuration file **dl.cfg**, user provided, with credentials to connect to
     AWS.
+    > NOTE: this file must contain a header section **AWS** followed by the
+    > keys **AWS_ACCESS_KEY_ID** and **AWS_SECRET_ACCESS_KEY** with the correct
+    > credentials, such as:
+    > ```bash
+    > [AWS]
+    > AWS_ACCESS_KEY_ID=your_key_here
+    > AWS_SECRET_ACCESS_KEY=your_secret_here
+    > ```
 
 - README Markdown file with project description.
 
@@ -75,6 +57,9 @@ To run the project, follow the steps:
 
 1. Make sure the credentials and configuration inside *dl.cfg* are correct,
     connection to AWS can be established and permissions are correct.
+
+2. Change the output path **output_data** in *etl.py* script to an S3 bucket
+    which the credentials in the config file have read/write access to.
 
 2. Run the *etl.py* script from the root of the repository.
 
