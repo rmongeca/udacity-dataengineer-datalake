@@ -41,7 +41,7 @@ def process_song_data(spark, input_data, output_data):
         - output_data: string with path to output file.
     """
     # get filepath to song data file
-    song_data = f"{input_data}song-data/*/*/*/*.json"
+    song_data = f"{input_data}song_data/*/*/*/*.json"
 
     # read song data file
     df = spark.read.json(song_data)
@@ -49,20 +49,21 @@ def process_song_data(spark, input_data, output_data):
     # extract columns to create songs table
     songs_table = df\
         .where(col("song_id").isNotNull())\
+        .dropDuplicates(["song_id"])\
         .select("song_id", "title", "artist_id", "year", "duration")\
         .withColumn("year", col("year").cast(ShortType()))
 
     # write songs table to parquet files partitioned by year and artist
-    songs_table.write.parquet(f"{output_data}song_table.parquet",
+    songs_table.write.parquet(f"{output_data}songs_table.parquet",
                               mode="overwrite")
-
     # extract columns to create artists table
     artists_table = df\
         .where(col("artist_id").isNotNull())\
-        .selectExpr("artist_id", "artist_name AS name",
-                    "artist_location AS location",
-                    "artist_latitude AS latitude",
-                    "artist_longitude AS longitude")
+        .dropDuplicates(["artist_id"])\
+        .select("artist_id", col("artist_name").alias("name"),
+                col("artist_location").alias("location"),
+                col("artist_latitude").alias("latitude"),
+                col("artist_longitude").alias("longitude"))
 
     # write artists table to parquet files
     artists_table.write.parquet(f"{output_data}artists_table.parquet",
@@ -91,9 +92,10 @@ def process_log_data(spark, input_data, output_data):
     # extract columns for users table
     users_table = df\
         .where(col("userId").isNotNull())\
-        .selectExpr("CAST(userId AS int) AS user_id",
-                    "firstName AS first_name", "lastName AS last_name",
-                    "gender", "level")
+        .dropDuplicates(["userId"])\
+        .select(col("userId").cast("int").alias("user_id"),
+                col("firstName").alias("first_name"),
+                col("lastName").alias("last_name"), "gender", "level")\
 
     # write users table to parquet files
     users_table.write.parquet(f"{output_data}users_table.parquet",
@@ -109,6 +111,7 @@ def process_log_data(spark, input_data, output_data):
     # extract columns to create time table
     time_table = df\
         .where(col("dt").isNotNull())\
+        .dropDuplicates(["dt"])\
         .select(col("dt").alias("start_time"), hour("dt").alias("hour"),
                 dayofmonth("dt").alias("day"), weekofyear("dt").alias("week"),
                 month("dt").alias("month"),
@@ -120,20 +123,16 @@ def process_log_data(spark, input_data, output_data):
                              mode="overwrite")
 
     # read in song data to use for songplays table
-    song_df = spark.read.json(f"{input_data}song-data/*/*/*/*.json")\
-        .where((col("song_id").isNotNull()) | (col("artist_id").isNotNull()))\
-        .select("song_id", "artist_id", "title",
-                col("artist_name").alias("name"))
+    song_df = spark.read.parquet(f"{output_data}songs_table.parquet")\
+        .select("song_id", "artist_id", "title")
 
     # extract columns from joined song and log datasets to create songplays
     # table
     songplays_table = df\
         .join(song_df, df.song == song_df.title, how="left")\
-        .join(song_df, df.artist == song_df.name, how="left")\
         .select(monotonically_increasing_id().alias("songplay_id"),
                 col("dt").alias("start_time"), col("userId").alias("user_id"),
-                song_df.song_id, song_df.artist_id,
-                col("sessionId").alias("session_id"))
+                "song_id", "artist_id", col("sessionId").alias("session_id"))
 
     # write songplays table to parquet files partitioned by year and month
     songplays_table.write.parquet(f"{output_data}songplays_table.parquet",
